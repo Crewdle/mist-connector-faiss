@@ -4,7 +4,6 @@ exports.FaissVectorDatabaseConnector = void 0;
 const faiss_node_1 = require("faiss-node");
 /**
  * The Faiss vector database connector.
- * @category Connector
  */
 class FaissVectorDatabaseConnector {
     /**

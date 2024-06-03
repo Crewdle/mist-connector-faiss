@@ -4,7 +4,6 @@ import { IVectorDatabaseConnector } from '@crewdle/web-sdk-types';
 
 /**
  * The Faiss vector database connector.
- * @category Connector
  */
 export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
   /**
