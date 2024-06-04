@@ -25,6 +25,11 @@ export declare class FaissVectorDatabaseConnector implements IVectorDatabaseConn
      */
     insert(vectors: number[][]): void;
     /**
+     * Remove vectors from the database.
+     * @param ids The IDs of the vectors to remove.
+     */
+    remove(ids: number[]): void;
+    /**
      * Create the Faiss index if it does not exist.
      * @param dimensions The number of dimensions.
      * @ignore

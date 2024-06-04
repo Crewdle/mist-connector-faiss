@@ -30,6 +30,13 @@ class FaissVectorDatabaseConnector {
         this.index.add(vectors.flat());
     }
     /**
+     * Remove vectors from the database.
+     * @param ids The IDs of the vectors to remove.
+     */
+    remove(ids) {
+        this.index.removeIds(ids);
+    }
+    /**
      * Create the Faiss index if it does not exist.
      * @param dimensions The number of dimensions.
      * @ignore
