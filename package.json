@@ -25,7 +25,7 @@
     "faiss-node": "^0.5.1"
   },
   "devDependencies": {
-    "@crewdle/web-sdk-types": "git@github.com:Crewdle/web-sdk-types.git#CA-2230-upload-models",
+    "@crewdle/web-sdk-types": "^1.0.12",
     "@types/node": "^20.12.12",
     "typescript": "^5.4.5"
   }
