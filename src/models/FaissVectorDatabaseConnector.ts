@@ -24,8 +24,12 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
    * @returns The labels of the k nearest vectors.
    */
   search(vector: number[], k: number): number[] {
+    if (!this.index) {
+      return [];
+    }
+
     vector = this.normalizeVector(vector);
-    return this.index!.search(vector, k).labels;
+    return this.index.search(vector, k).labels;
   }
 
   /**

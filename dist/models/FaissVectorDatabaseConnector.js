@@ -17,6 +17,9 @@ class FaissVectorDatabaseConnector {
      * @returns The labels of the k nearest vectors.
      */
     search(vector, k) {
+        if (!this.index) {
+            return [];
+        }
         vector = this.normalizeVector(vector);
         return this.index.search(vector, k).labels;
     }
