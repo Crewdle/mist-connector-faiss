@@ -37,6 +37,10 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
    * @param vectors The vectors to insert.
    */
   insert(vectors: number[][]): void {
+    if (vectors.length === 0) {
+      return;
+    }
+
     this.createIndex(vectors[0].length);
     vectors = vectors.map((vector) => this.normalizeVector(vector));
     this.index!.add(vectors.flat());
@@ -47,7 +51,11 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
    * @param ids The IDs of the vectors to remove.
    */
   remove(ids: number[]): void {
-    this.index!.removeIds(ids);
+    if (!this.index) {
+      return;
+    }
+
+    this.index.removeIds(ids);
   }
 
   /**

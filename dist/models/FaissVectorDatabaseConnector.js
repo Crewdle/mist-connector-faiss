@@ -28,6 +28,9 @@ class FaissVectorDatabaseConnector {
      * @param vectors The vectors to insert.
      */
     insert(vectors) {
+        if (vectors.length === 0) {
+            return;
+        }
         this.createIndex(vectors[0].length);
         vectors = vectors.map((vector) => this.normalizeVector(vector));
         this.index.add(vectors.flat());
@@ -37,6 +40,9 @@ class FaissVectorDatabaseConnector {
      * @param ids The IDs of the vectors to remove.
      */
     remove(ids) {
+        if (!this.index) {
+            return;
+        }
         this.index.removeIds(ids);
     }
     /**
