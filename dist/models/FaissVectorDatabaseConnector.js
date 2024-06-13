@@ -20,7 +20,6 @@ class FaissVectorDatabaseConnector {
         if (!this.index) {
             return [];
         }
-        vector = this.normalizeVector(vector);
         return this.index.search(vector, k).labels;
     }
     /**
@@ -32,7 +31,6 @@ class FaissVectorDatabaseConnector {
             return;
         }
         this.createIndex(vectors[0].length);
-        vectors = vectors.map((vector) => this.normalizeVector(vector));
         this.index.add(vectors.flat());
     }
     /**
@@ -55,16 +53,6 @@ class FaissVectorDatabaseConnector {
             return;
         }
         this.index = new faiss_node_1.IndexFlatIP(dimensions);
-    }
-    /**
-     * Normalize a vector.
-     * @param vector The vector to normalize.
-     * @returns The normalized vector.
-     * @ignore
-     */
-    normalizeVector(vector) {
-        const sum = vector.reduce((acc, value) => acc + value, 0);
-        return vector.map((value) => value / sum);
     }
 }
 exports.FaissVectorDatabaseConnector = FaissVectorDatabaseConnector;

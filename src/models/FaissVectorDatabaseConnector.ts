@@ -28,7 +28,6 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
       return [];
     }
 
-    vector = this.normalizeVector(vector);
     return this.index.search(vector, k).labels;
   }
 
@@ -42,7 +41,6 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
     }
 
     this.createIndex(vectors[0].length);
-    vectors = vectors.map((vector) => this.normalizeVector(vector));
     this.index!.add(vectors.flat());
   }
 
@@ -68,16 +66,5 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
       return;
     }
     this.index = new IndexFlatIP(dimensions);
-  }
-
-  /**
-   * Normalize a vector.
-   * @param vector The vector to normalize.
-   * @returns The normalized vector.
-   * @ignore
-   */
-  private normalizeVector(vector: number[]): number[] {
-    const sum = vector.reduce((acc, value) => acc + value, 0);
-    return vector.map((value) => value / sum);
   }
 }

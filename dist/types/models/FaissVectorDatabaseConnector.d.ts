@@ -35,11 +35,4 @@ export declare class FaissVectorDatabaseConnector implements IVectorDatabaseConn
      * @ignore
      */
     private createIndex;
-    /**
-     * Normalize a vector.
-     * @param vector The vector to normalize.
-     * @returns The normalized vector.
-     * @ignore
-     */
-    private normalizeVector;
 }
