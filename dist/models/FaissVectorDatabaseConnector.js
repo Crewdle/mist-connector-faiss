@@ -16,19 +16,16 @@ class FaissVectorDatabaseConnector {
      * @param k The number of nearest vectors to return.
      * @param minRelevance The minimum relevance of the vectors.
      * @param startingIndex The starting index of the vectors.
-     * @returns The labels of the k nearest vectors.
+     * @returns The IDs of the k nearest vectors.
      */
     search(vector, k, minRelevance, startingIndex) {
         if (!this.index) {
             return [];
         }
-        console.log('searching for vector', k, minRelevance, startingIndex);
         if (startingIndex !== undefined && minRelevance !== undefined) {
             const items = this.index.search(vector, 1000);
             const newItems = items.labels.map((label, index) => ({ label, distance: items.distances[index] })).filter((item) => item.label >= startingIndex);
-            console.log('newItems', newItems);
             const filteredItems = newItems.filter((item) => item.distance >= minRelevance).slice(0, k).map((item) => item.label);
-            console.log('filteredItems', filteredItems);
             return filteredItems;
         }
         return this.index.search(vector, k).labels;

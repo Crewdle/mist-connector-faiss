@@ -18,7 +18,7 @@ export declare class FaissVectorDatabaseConnector implements IVectorDatabaseConn
      * @param k The number of nearest vectors to return.
      * @param minRelevance The minimum relevance of the vectors.
      * @param startingIndex The starting index of the vectors.
-     * @returns The labels of the k nearest vectors.
+     * @returns The IDs of the k nearest vectors.
      */
     search(vector: number[], k: number, minRelevance?: number, startingIndex?: number): number[];
     /**
