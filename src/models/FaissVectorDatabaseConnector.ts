@@ -30,13 +30,10 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
       return [];
     }
 
-    console.log('searching for vector', k, minRelevance, startingIndex);
     if (startingIndex !== undefined && minRelevance !== undefined) {
       const items = this.index.search(vector, 1000);
       const newItems = items.labels.map((label, index) => ({ label, distance: items.distances[index] })).filter((item) => item.label >= startingIndex);
-      console.log('newItems', newItems);
       const filteredItems = newItems.filter((item) => item.distance >= minRelevance).slice(0, k).map((item) => item.label);
-      console.log('filteredItems', filteredItems);
       return filteredItems;
     }
 
