@@ -34,21 +34,22 @@ class FaissVectorDatabaseConnector {
      * @param vector The vector to search for.
      * @param k The number of nearest vectors to return.
      * @param minRelevance The minimum relevance of the vectors.
-     * @param startingIndex The starting index of the vectors.
+     * @param contentSize The size of the content to return (vector +/- contentSize, default 0).
      * @returns The content of the k nearest vectors.
      */
-    search(vector, k, minRelevance, startingIndex) {
+    search(vector, k, minRelevance, contentSize = 0) {
         if (!this.index) {
             return [];
         }
-        if (startingIndex !== undefined && minRelevance !== undefined) {
-            const items = this.index.search(vector, 1000);
-            const newItems = items.labels.map((label, index) => ({ label, distance: items.distances[index] })).filter((item) => item.label >= startingIndex);
-            const filteredItems = newItems.filter((item) => item.distance >= minRelevance).slice(0, k).map((item) => item.label);
-            return filteredItems.map((id) => this.documentChunks[id]);
+        if (minRelevance !== undefined) {
+            const items = this.index.search(vector, k);
+            const newItems = items.labels.map((label, index) => ({ label, distance: items.distances[index] }));
+            const filteredItems = newItems.filter((item) => item.distance >= minRelevance).map((item) => item.label);
+            return filteredItems.map((id) => this.documentChunks.slice(id - contentSize, id + contentSize + 1).join(' '));
         }
-        const ids = this.index.search(vector, k).labels;
-        return ids.map((id) => this.documentChunks[id]);
+        const search = this.index.search(vector, k);
+        const ids = search.labels;
+        return ids.map((id) => this.documentChunks.slice(id - contentSize, id + contentSize + 1).join(' '));
     }
     /**
      * Insert vectors into the database.
