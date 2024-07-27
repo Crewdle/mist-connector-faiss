@@ -41,6 +41,9 @@ class FaissVectorDatabaseConnector {
         if (!this.index) {
             return [];
         }
+        if (k > this.index.ntotal()) {
+            k = this.index.ntotal();
+        }
         if (minRelevance !== undefined) {
             const items = this.index.search(vector, k);
             const newItems = items.labels.map((label, index) => ({ label, distance: items.distances[index] }));
