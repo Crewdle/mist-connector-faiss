@@ -44,15 +44,24 @@ class FaissVectorDatabaseConnector {
         if (k > this.index.ntotal()) {
             k = this.index.ntotal();
         }
-        if (minRelevance !== undefined) {
-            const items = this.index.search(vector, k);
-            const newItems = items.labels.map((label, index) => ({ label, distance: items.distances[index] }));
-            const filteredItems = newItems.filter((item) => item.distance >= minRelevance).map((item) => item.label);
-            return filteredItems.map((id) => this.documentChunks.slice(id - contentSize, id + contentSize + 1).join(' '));
-        }
         const search = this.index.search(vector, k);
-        const ids = search.labels;
-        return ids.map((id) => this.documentChunks.slice(id - contentSize, id + contentSize + 1).join(' '));
+        let ids = search.labels.map((label, index) => ({ label, distance: search.distances[index] }));
+        if (minRelevance !== undefined) {
+            ids = ids.filter((item) => item.distance >= minRelevance);
+        }
+        return ids.map((id) => {
+            const document = this.documents.find((doc) => doc.startIndex <= id.label && doc.startIndex + doc.length > id.label);
+            if (!document) {
+                throw new Error('Document not found');
+            }
+            const startIndex = Math.max(document.startIndex, id.label - contentSize);
+            const endIndex = Math.min(document.startIndex + document.length, id.label + contentSize + 1);
+            return {
+                content: this.documentChunks.slice(startIndex, endIndex).join(' '),
+                relevance: id.distance,
+                pathName: document.name,
+            };
+        });
     }
     /**
      * Insert vectors into the database.

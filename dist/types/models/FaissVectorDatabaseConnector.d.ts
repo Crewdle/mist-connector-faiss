@@ -1,4 +1,4 @@
-import { IVectorDatabaseConnector } from '@crewdle/web-sdk-types';
+import { IVectorDatabaseConnector, IVectorDatabaseSearchResult } from '@crewdle/web-sdk-types';
 /**
  * The Faiss vector database connector.
  */
@@ -35,7 +35,7 @@ export declare class FaissVectorDatabaseConnector implements IVectorDatabaseConn
      * @param contentSize The size of the content to return (vector +/- contentSize, default 0).
      * @returns The content of the k nearest vectors.
      */
-    search(vector: number[], k: number, minRelevance?: number, contentSize?: number): string[];
+    search(vector: number[], k: number, minRelevance?: number, contentSize?: number): IVectorDatabaseSearchResult[];
     /**
      * Insert vectors into the database.
      * @param name The name of the document.

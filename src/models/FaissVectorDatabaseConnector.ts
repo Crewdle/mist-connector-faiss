@@ -1,6 +1,6 @@
 import { IndexFlatIP } from 'faiss-node';
 
-import { IVectorDatabaseConnector } from '@crewdle/web-sdk-types';
+import { IVectorDatabaseConnector, IVectorDatabaseSearchResult } from '@crewdle/web-sdk-types';
 
 /**
  * The interface for a Faiss Vector Database document.
@@ -65,7 +65,7 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
    * @param contentSize The size of the content to return (vector +/- contentSize, default 0).
    * @returns The content of the k nearest vectors.
    */
-  search(vector: number[], k: number, minRelevance?: number, contentSize: number = 0): string[] {
+  search(vector: number[], k: number, minRelevance?: number, contentSize: number = 0): IVectorDatabaseSearchResult[] {
     if (!this.index) {
       return [];
     }
@@ -74,16 +74,27 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
       k = this.index.ntotal();
     }
 
+    const search = this.index.search(vector, k);
+    let ids = search.labels.map((label, index) => ({ label, distance: search.distances[index] }));
+
     if (minRelevance !== undefined) {
-      const items = this.index.search(vector, k);
-      const newItems = items.labels.map((label, index) => ({ label, distance: items.distances[index] }));
-      const filteredItems = newItems.filter((item) => item.distance >= minRelevance).map((item) => item.label);
-      return filteredItems.map((id) => this.documentChunks.slice(id - contentSize, id + contentSize + 1).join(' '));
+      ids = ids.filter((item) => item.distance >= minRelevance);
     }
 
-    const search = this.index.search(vector, k)
-    const ids = search.labels;
-    return ids.map((id) => this.documentChunks.slice(id - contentSize, id + contentSize + 1).join(' '));
+    return ids.map((id) => {
+      const document = this.documents.find((doc) => doc.startIndex <= id.label && doc.startIndex + doc.length > id.label);
+      if (!document) {
+        throw new Error('Document not found');
+      }
+
+      const startIndex = Math.max(document.startIndex, id.label - contentSize);
+      const endIndex = Math.min(document.startIndex + document.length, id.label + contentSize + 1);
+      return {
+        content: this.documentChunks.slice(startIndex, endIndex).join(' '),
+        relevance: id.distance,
+        pathName: document.name,
+      };
+    });
   }
 
   /**
