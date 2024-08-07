@@ -1,11 +1,12 @@
 {
   "name": "@crewdle/mist-connector-faiss",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "",
   "main": "dist/index.js",
   "types": "dist/types/index.d.ts",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "copy-sdk-types": "cp -r ../web-sdk-types/dist ./node_modules/@crewdle/web-sdk-types"
   },
   "repository": {
     "type": "git",
@@ -25,7 +26,7 @@
     "faiss-node": "^0.5.1"
   },
   "devDependencies": {
-    "@crewdle/web-sdk-types": "^1.0.16",
+    "@crewdle/web-sdk-types": "^1.0.18",
     "@types/node": "^20.14.9",
     "typescript": "^5.5.2"
   }
