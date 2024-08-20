@@ -1,6 +1,6 @@
 import { IndexFlatIP } from 'faiss-node';
 
-import { IVectorDatabaseConnector, IVectorDatabaseSearchResult } from '@crewdle/web-sdk-types';
+import { ISearchResult, IVectorDatabaseConnector } from '@crewdle/web-sdk-types';
 
 /**
  * The interface for a Faiss Vector Database document.
@@ -65,7 +65,7 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
    * @param contentSize The size of the content to return (vector +/- contentSize, default 0).
    * @returns The content of the k nearest vectors.
    */
-  search(vector: number[], k: number, minRelevance?: number, contentSize: number = 0): IVectorDatabaseSearchResult[] {
+  search(vector: number[], k: number, minRelevance?: number, contentSize: number = 0): ISearchResult[] {
     if (!this.index) {
       return [];
     }
