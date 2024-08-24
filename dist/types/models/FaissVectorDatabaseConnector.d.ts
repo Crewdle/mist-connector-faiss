@@ -1,4 +1,4 @@
-import { ISearchResult, IVectorDatabaseConnector } from '@crewdle/web-sdk-types';
+import { IIndex, ISearchResult, IVectorDatabaseConnector } from '@crewdle/web-sdk-types';
 /**
  * The Faiss vector database connector.
  */
@@ -14,10 +14,10 @@ export declare class FaissVectorDatabaseConnector implements IVectorDatabaseConn
      */
     private documents;
     /**
-     * The document chunks in the database.
+     * The indexes in the database.
      * @ignore
      */
-    private documentChunks;
+    private indexes;
     /**
      * The constructor.
      */
@@ -31,18 +31,19 @@ export declare class FaissVectorDatabaseConnector implements IVectorDatabaseConn
      * Search for the k nearest vectors.
      * @param vector The vector to search for.
      * @param k The number of nearest vectors to return.
-     * @param minRelevance The minimum relevance of the vectors.
-     * @param contentSize The size of the content to return (vector +/- contentSize, default 0).
+     * @param minRelevance The minimum relevance of the vectors (default 0).
+     * @param contentSize The size of the content to return (content +/- contentSize, default 0).
      * @returns The content of the k nearest vectors.
      */
     search(vector: number[], k: number, minRelevance?: number, contentSize?: number): ISearchResult[];
     /**
      * Insert vectors into the database.
      * @param name The name of the document.
-     * @param chunks The chunks of the document.
+     * @param content The content.
+     * @param index The index of the vectors.
      * @param vectors The vectors to the document to insert.
      */
-    insert(name: string, chunks: string[], vectors: number[][]): void;
+    insert(name: string, content: string, index: IIndex[], vectors: number[][]): void;
     /**
      * Remove vectors from the database.
      * @param name The name of the document.

@@ -1,6 +1,6 @@
 import { IndexFlatIP } from 'faiss-node';
 
-import { ISearchResult, IVectorDatabaseConnector } from '@crewdle/web-sdk-types';
+import { IIndex, ISearchResult, IVectorDatabaseConnector } from '@crewdle/web-sdk-types';
 
 /**
  * The interface for a Faiss Vector Database document.
@@ -12,12 +12,29 @@ interface IFaissVectorDatabaseDocument {
   name: string;
 
   /**
+   * The content of the document.
+   */
+  content: string;
+
+  /**
    * The starting index of the document.
    */
   startIndex: number;
 
   /**
    * The length of the document.
+   */
+  length: number;
+}
+
+interface IFaissVectorDatabaseIndex {
+  /**
+   * The starting index of the content.
+   */
+  startIndex: number;
+
+  /**
+   * The length of the content.
    */
   length: number;
 }
@@ -39,10 +56,10 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
   private documents: IFaissVectorDatabaseDocument[] = [];
 
   /**
-   * The document chunks in the database.
+   * The indexes in the database.
    * @ignore
    */
-  private documentChunks: string[] = [];
+  private indexes: IFaissVectorDatabaseIndex[] = [];
 
   /**
    * The constructor.
@@ -61,11 +78,11 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
    * Search for the k nearest vectors.
    * @param vector The vector to search for.
    * @param k The number of nearest vectors to return.
-   * @param minRelevance The minimum relevance of the vectors.
-   * @param contentSize The size of the content to return (vector +/- contentSize, default 0).
+   * @param minRelevance The minimum relevance of the vectors (default 0).
+   * @param contentSize The size of the content to return (content +/- contentSize, default 0).
    * @returns The content of the k nearest vectors.
    */
-  search(vector: number[], k: number, minRelevance?: number, contentSize: number = 0): ISearchResult[] {
+  search(vector: number[], k: number, minRelevance: number = 0, contentSize: number = 0): ISearchResult[] {
     if (!this.index) {
       return [];
     }
@@ -75,43 +92,52 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
     }
 
     const search = this.index.search(vector, k);
-    let ids = search.labels.map((label, index) => ({ label, distance: search.distances[index] }));
+    let ids = search.labels.map((label, index) => ({ label, distance: search.distances[index] })).filter((item) => item.distance >= minRelevance);
 
-    if (minRelevance !== undefined) {
-      ids = ids.filter((item) => item.distance >= minRelevance);
-    }
-
-    return ids.map((id) => {
+    const results = ids.map((id) => {
       const document = this.documents.find((doc) => doc.startIndex <= id.label && doc.startIndex + doc.length > id.label);
       if (!document) {
         throw new Error('Document not found');
       }
 
-      const startIndex = Math.max(document.startIndex, id.label - contentSize);
-      const endIndex = Math.min(document.startIndex + document.length, id.label + contentSize + 1);
+      const index = this.indexes[id.label];
+      const startIndex = Math.max(0, index.startIndex - contentSize);
+      const endIndex = Math.min(document.content.length, index.startIndex + index.length + contentSize);
+      const content = document.content.substring(startIndex, endIndex);
+
       return {
-        content: this.documentChunks.slice(startIndex, endIndex).join(' '),
+        content,
         relevance: id.distance,
         pathName: document.name,
       };
     });
+
+    const uniqueResults = results.filter((result, index) => results.findIndex((r, i) => r.content === result.content && i !== index) === -1);
+
+    return uniqueResults;
   }
 
   /**
    * Insert vectors into the database.
    * @param name The name of the document.
-   * @param chunks The chunks of the document.
+   * @param content The content.
+   * @param index The index of the vectors.
    * @param vectors The vectors to the document to insert.
    */
-  insert(name: string, chunks: string[], vectors: number[][]): void {
+  insert(name: string, content: string, index: IIndex[], vectors: number[][]): void {
     if (vectors.length === 0) {
       return;
     }
 
     this.createIndex(vectors[0].length);
     this.index!.add(vectors.flat());
-    this.documents.push({ name, startIndex: this.documentChunks.length, length: chunks.length });
-    this.documentChunks.push(...chunks);
+    this.documents.push({
+      name,
+      content,
+      startIndex: this.indexes.length,
+      length: index.length
+    });
+    this.indexes.push(...index.map((idx) => ({ startIndex: idx.start, length: idx.length })));
   }
 
   /**
@@ -130,7 +156,7 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
 
     const startIndex = document.startIndex;
     const endIndex = startIndex + document.length;
-    this.documentChunks = this.documentChunks.slice(startIndex, endIndex);
+    this.indexes = this.indexes.slice(startIndex, endIndex);
     this.index.removeIds(Array.from({ length: document.length }, (_, index) => startIndex + index));
     this.documents = this.documents.filter((doc) => doc.name !== name);
   }
