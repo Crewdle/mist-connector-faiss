@@ -1,6 +1,6 @@
 {
   "name": "@crewdle/mist-connector-faiss",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "",
   "main": "dist/index.js",
   "types": "dist/types/index.d.ts",
@@ -26,7 +26,7 @@
     "faiss-node": "^0.5.1"
   },
   "devDependencies": {
-    "@crewdle/web-sdk-types": "^1.0.18",
+    "@crewdle/web-sdk-types": "^1.0.20",
     "@types/node": "^20.14.9",
     "typescript": "^5.5.2"
   }
