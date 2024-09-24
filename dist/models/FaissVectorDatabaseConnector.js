@@ -93,15 +93,22 @@ class FaissVectorDatabaseConnector {
         if (!this.index) {
             return;
         }
-        const document = this.documents.find((doc) => doc.name === name);
-        if (!document) {
+        const documents = this.documents.filter((doc) => doc.name === name);
+        if (documents.length === 0) {
             return;
         }
-        const startIndex = document.startIndex;
-        const endIndex = startIndex + document.length;
-        this.indexes = this.indexes.slice(startIndex, endIndex);
-        this.index.removeIds(Array.from({ length: document.length }, (_, index) => startIndex + index));
-        this.documents = this.documents.filter((doc) => doc.name !== name);
+        for (const document of documents) {
+            const startIndex = document.startIndex;
+            const endIndex = startIndex + document.length;
+            this.indexes = this.indexes.slice(startIndex, endIndex);
+            this.index.removeIds(Array.from({ length: document.length }, (_, index) => startIndex + index));
+            this.documents = this.documents.filter((doc) => doc !== document);
+            for (const doc of this.documents) {
+                if (doc.startIndex > startIndex) {
+                    doc.startIndex -= document.length;
+                }
+            }
+        }
     }
     /**
      * Create the Faiss index if it does not exist.
