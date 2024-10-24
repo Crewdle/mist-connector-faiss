@@ -1,6 +1,10 @@
+import fs from 'fs';
+
 import { IndexFlatIP } from 'faiss-node';
 
 import { IIndex, ISearchResult, IVectorDatabaseConnector } from '@crewdle/web-sdk-types';
+
+import { IFaissVectorDatabaseOptions } from './FaissVectorDatabaseOptions';
 
 /**
  * The interface for a Faiss Vector Database document.
@@ -62,9 +66,29 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
   private indexes: IFaissVectorDatabaseIndex[] = [];
 
   /**
+   * The base folder.
+   * @ignore
+   */
+  private baseFolder?: string;
+
+  /**
+   * The save to disk debounce.
+   * @ignore
+   */
+  private saveToDiskDebounce?: NodeJS.Timeout;
+
+  /**
    * The constructor.
    */
-  constructor() {}
+  constructor(
+    private readonly dbKey: string,
+    private readonly collectionVersion: number,
+    private lastTransactionId: string,
+    private readonly options?: IFaissVectorDatabaseOptions,
+  ) {
+    this.baseFolder = this.options?.baseFolder;
+    this.loadFromDisk();
+  }
   
   /**
    * Get the content of the database.
@@ -124,7 +148,8 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
    * @param index The index of the vectors.
    * @param vectors The vectors to the document to insert.
    */
-  insert(name: string, content: string, index: IIndex[], vectors: number[][]): void {
+  insert(name: string, content: string, index: IIndex[], vectors: number[][], transactionId: string): void {
+    this.lastTransactionId = transactionId;
     if (vectors.length === 0) {
       return;
     }
@@ -138,13 +163,18 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
       length: index.length
     });
     this.indexes.push(...index.map((idx) => ({ startIndex: idx.start, length: idx.length })));
+
+    this.saveToDisk();
   }
 
   /**
    * Remove vectors from the database.
    * @param name The name of the document.
+   * @param transactionId The transaction ID.
    */
-  remove(name: string): void {
+  remove(name: string, transactionId: string): void {
+    this.lastTransactionId = transactionId;
+
     if (!this.index) {
       return;
     }
@@ -166,6 +196,8 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
         }
       }
     }
+
+    this.saveToDisk();
   }
 
   /**
@@ -178,5 +210,59 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
       return;
     }
     this.index = new IndexFlatIP(dimensions);
+  }
+
+  private async saveToDisk(): Promise<void> {
+    if (!this.index || !this.baseFolder) {
+      return;
+    }
+
+    if (this.saveToDiskDebounce) {
+      clearTimeout(this.saveToDiskDebounce);
+    }
+
+    this.saveToDiskDebounce = setTimeout(() => {
+      if (!this.index) {
+        return;
+      }
+
+      this.saveToDiskDebounce = undefined;
+      const buffer = this.index.toBuffer();
+
+      const transactionIdBuffer = Buffer.from(this.lastTransactionId);
+      const transactionIdLengthBuffer = Buffer.alloc(4);
+      transactionIdLengthBuffer.writeUInt32LE(transactionIdBuffer.length);
+      const versionBuffer = Buffer.alloc(4);
+      versionBuffer.writeUInt32LE(this.collectionVersion);
+      const finalBuffer = Buffer.concat([transactionIdLengthBuffer, transactionIdBuffer, versionBuffer, Buffer.from(buffer)]);
+
+      fs.writeFileSync(`${this.baseFolder}/vector-${this.dbKey}.bin`, finalBuffer);
+    }, 30000);
+  }
+
+  private async loadFromDisk(): Promise<void> {
+    if (!this.baseFolder) {
+      return;
+    }
+
+    try {
+      const buffer = fs.readFileSync(`${this.baseFolder}/vector-${this.dbKey}.bin`);
+      const transactionIdLength = buffer.readUInt32LE(0);
+      const transactionId = buffer.subarray(4, 4 + transactionIdLength).toString();
+      const version = buffer.readUInt32LE(4 + transactionIdLength);
+      const indexBuffer = buffer.subarray(8 + transactionIdLength);
+
+      if (transactionId !== this.lastTransactionId) {
+        return;
+      }
+
+      if (version !== this.collectionVersion) {
+        return;
+      }
+
+      this.index = IndexFlatIP.fromBuffer(indexBuffer);
+    } catch (error) {
+      console.error(error);
+    }
   }
 }
