@@ -5,8 +5,6 @@ import { IFaissVectorDatabaseOptions } from './FaissVectorDatabaseOptions';
  */
 export declare class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
     private readonly dbKey;
-    private readonly collectionVersion;
-    private lastTransactionId;
     private readonly options?;
     /**
      * The Faiss index.
@@ -29,14 +27,9 @@ export declare class FaissVectorDatabaseConnector implements IVectorDatabaseConn
      */
     private baseFolder?;
     /**
-     * The save to disk debounce.
-     * @ignore
-     */
-    private saveToDiskDebounce?;
-    /**
      * The constructor.
      */
-    constructor(dbKey: string, collectionVersion: number, lastTransactionId: string, options?: IFaissVectorDatabaseOptions | undefined);
+    constructor(dbKey: string, options?: IFaissVectorDatabaseOptions | undefined);
     /**
      * Get the content of the database.
      * @returns The content of the database.
@@ -58,19 +51,26 @@ export declare class FaissVectorDatabaseConnector implements IVectorDatabaseConn
      * @param index The index of the vectors.
      * @param vectors The vectors to the document to insert.
      */
-    insert(name: string, content: string, index: IIndex[], vectors: number[][], transactionId: string): void;
+    insert(name: string, content: string, index: IIndex[], vectors: number[][]): void;
     /**
      * Remove vectors from the database.
      * @param name The name of the document.
-     * @param transactionId The transaction ID.
      */
-    remove(name: string, transactionId: string): void;
+    remove(name: string): void;
+    /**
+     * Save the database to disk.
+     * @param version The version of the data collection.
+     */
+    saveToDisk(version: number): void;
+    /**
+     * Load the database from disk.
+     * @param version The version of the data collection.
+     */
+    loadFromDisk(version: number): void;
     /**
      * Create the Faiss index if it does not exist.
      * @param dimensions The number of dimensions.
      * @ignore
      */
     private createIndex;
-    private saveToDisk;
-    private loadFromDisk;
 }

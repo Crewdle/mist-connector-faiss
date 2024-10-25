@@ -1,13 +1,4 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -22,11 +13,9 @@ class FaissVectorDatabaseConnector {
     /**
      * The constructor.
      */
-    constructor(dbKey, collectionVersion, lastTransactionId, options) {
+    constructor(dbKey, options) {
         var _a;
         this.dbKey = dbKey;
-        this.collectionVersion = collectionVersion;
-        this.lastTransactionId = lastTransactionId;
         this.options = options;
         /**
          * The documents in the database.
@@ -39,7 +28,6 @@ class FaissVectorDatabaseConnector {
          */
         this.indexes = [];
         this.baseFolder = (_a = this.options) === null || _a === void 0 ? void 0 : _a.baseFolder;
-        this.loadFromDisk();
     }
     /**
      * Get the content of the database.
@@ -91,8 +79,7 @@ class FaissVectorDatabaseConnector {
      * @param index The index of the vectors.
      * @param vectors The vectors to the document to insert.
      */
-    insert(name, content, index, vectors, transactionId) {
-        this.lastTransactionId = transactionId;
+    insert(name, content, index, vectors) {
         if (vectors.length === 0) {
             return;
         }
@@ -105,15 +92,12 @@ class FaissVectorDatabaseConnector {
             length: index.length
         });
         this.indexes.push(...index.map((idx) => ({ startIndex: idx.start, length: idx.length })));
-        this.saveToDisk();
     }
     /**
      * Remove vectors from the database.
      * @param name The name of the document.
-     * @param transactionId The transaction ID.
      */
-    remove(name, transactionId) {
-        this.lastTransactionId = transactionId;
+    remove(name) {
         if (!this.index) {
             return;
         }
@@ -133,7 +117,46 @@ class FaissVectorDatabaseConnector {
                 }
             }
         }
-        this.saveToDisk();
+    }
+    /**
+     * Save the database to disk.
+     * @param version The version of the data collection.
+     */
+    saveToDisk(version) {
+        if (!this.index || !this.baseFolder) {
+            return;
+        }
+        const faissIndexBuffer = this.index.toBuffer();
+        const faissIndexBufferLength = faissIndexBuffer.byteLength;
+        const documentsBuffer = Buffer.from(JSON.stringify(this.documents));
+        const documentsBufferLength = documentsBuffer.byteLength;
+        const indexesBuffer = Buffer.from(JSON.stringify(this.indexes));
+        const indexesBufferLength = indexesBuffer.byteLength;
+        let buffer = Buffer.alloc(4 + faissIndexBufferLength + 4 + documentsBufferLength + 4 + indexesBufferLength);
+        buffer.writeUInt32LE(faissIndexBufferLength, 0);
+        buffer.writeUInt32LE(documentsBufferLength, 4);
+        buffer.writeUInt32LE(indexesBufferLength, 4 + 4);
+        buffer = Buffer.concat([buffer, faissIndexBuffer, documentsBuffer, indexesBuffer]);
+        fs_1.default.writeFileSync(`${this.baseFolder}/vector-${this.dbKey}-${version}.bin`, buffer);
+    }
+    /**
+     * Load the database from disk.
+     * @param version The version of the data collection.
+     */
+    loadFromDisk(version) {
+        if (!this.baseFolder) {
+            return;
+        }
+        const buffer = fs_1.default.readFileSync(`${this.baseFolder}/vector-${this.dbKey}-${version}.bin`);
+        const faissIndexBufferLength = buffer.readUInt32LE(0);
+        const documentsBufferLength = buffer.readUInt32LE(4);
+        const indexesBufferLength = buffer.readUInt32LE(4 + 4);
+        const faissIndexBuffer = buffer.subarray(4 + 4 + 4, 4 + 4 + 4 + faissIndexBufferLength);
+        const documentsBuffer = buffer.subarray(4 + 4 + 4 + faissIndexBufferLength, 4 + 4 + 4 + faissIndexBufferLength + documentsBufferLength);
+        const indexesBuffer = buffer.subarray(4 + 4 + 4 + faissIndexBufferLength + documentsBufferLength, 4 + 4 + 4 + faissIndexBufferLength + documentsBufferLength + indexesBufferLength);
+        this.index = faiss_node_1.IndexFlatIP.fromBuffer(faissIndexBuffer);
+        this.documents = JSON.parse(documentsBuffer.toString());
+        this.indexes = JSON.parse(indexesBuffer.toString());
     }
     /**
      * Create the Faiss index if it does not exist.
@@ -145,54 +168,6 @@ class FaissVectorDatabaseConnector {
             return;
         }
         this.index = new faiss_node_1.IndexFlatIP(dimensions);
-    }
-    saveToDisk() {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (!this.index || !this.baseFolder) {
-                return;
-            }
-            if (this.saveToDiskDebounce) {
-                clearTimeout(this.saveToDiskDebounce);
-            }
-            this.saveToDiskDebounce = setTimeout(() => {
-                if (!this.index) {
-                    return;
-                }
-                this.saveToDiskDebounce = undefined;
-                const buffer = this.index.toBuffer();
-                const transactionIdBuffer = Buffer.from(this.lastTransactionId);
-                const transactionIdLengthBuffer = Buffer.alloc(4);
-                transactionIdLengthBuffer.writeUInt32LE(transactionIdBuffer.length);
-                const versionBuffer = Buffer.alloc(4);
-                versionBuffer.writeUInt32LE(this.collectionVersion);
-                const finalBuffer = Buffer.concat([transactionIdLengthBuffer, transactionIdBuffer, versionBuffer, Buffer.from(buffer)]);
-                fs_1.default.writeFileSync(`${this.baseFolder}/vector-${this.dbKey}.bin`, finalBuffer);
-            }, 30000);
-        });
-    }
-    loadFromDisk() {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (!this.baseFolder) {
-                return;
-            }
-            try {
-                const buffer = fs_1.default.readFileSync(`${this.baseFolder}/vector-${this.dbKey}.bin`);
-                const transactionIdLength = buffer.readUInt32LE(0);
-                const transactionId = buffer.subarray(4, 4 + transactionIdLength).toString();
-                const version = buffer.readUInt32LE(4 + transactionIdLength);
-                const indexBuffer = buffer.subarray(8 + transactionIdLength);
-                if (transactionId !== this.lastTransactionId) {
-                    return;
-                }
-                if (version !== this.collectionVersion) {
-                    return;
-                }
-                this.index = faiss_node_1.IndexFlatIP.fromBuffer(indexBuffer);
-            }
-            catch (error) {
-                console.error(error);
-            }
-        });
     }
 }
 exports.FaissVectorDatabaseConnector = FaissVectorDatabaseConnector;

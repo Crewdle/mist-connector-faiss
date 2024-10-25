@@ -14,8 +14,8 @@ function getFaissVectorDatabaseConnector(options) {
         return FaissVectorDatabaseConnector_1.FaissVectorDatabaseConnector;
     }
     return class FaissVectorDatabaseConnectorWithInjectedOptions extends FaissVectorDatabaseConnector_1.FaissVectorDatabaseConnector {
-        constructor(dbKey, collectionVersion, lastTransactionId) {
-            super(dbKey, collectionVersion, lastTransactionId, options);
+        constructor(dbKey) {
+            super(dbKey, options);
         }
     };
 }
