@@ -137,6 +137,7 @@ class FaissVectorDatabaseConnector {
         buffer.writeUInt32LE(documentsBufferLength, 4);
         buffer.writeUInt32LE(indexesBufferLength, 4 + 4);
         buffer = Buffer.concat([buffer, faissIndexBuffer, documentsBuffer, indexesBuffer]);
+        fs_1.default.rmSync(`${this.baseFolder}/vector-${this.dbKey}-*.bin`, { force: true });
         fs_1.default.writeFileSync(`${this.baseFolder}/vector-${this.dbKey}-${version}.bin`, buffer);
     }
     /**

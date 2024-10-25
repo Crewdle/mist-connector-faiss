@@ -205,6 +205,7 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
     buffer.writeUInt32LE(indexesBufferLength, 4 + 4);
     buffer = Buffer.concat([buffer, faissIndexBuffer, documentsBuffer, indexesBuffer]);
 
+    fs.rmSync(`${this.baseFolder}/vector-${this.dbKey}-*.bin`, { force: true });
     fs.writeFileSync(`${this.baseFolder}/vector-${this.dbKey}-${version}.bin`, buffer);
   }
 
