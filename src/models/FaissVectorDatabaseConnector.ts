@@ -199,7 +199,7 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
     const indexesBuffer = Buffer.from(JSON.stringify(this.indexes));
     const indexesBufferLength = indexesBuffer.byteLength;
 
-    let buffer = Buffer.alloc(4 + faissIndexBufferLength + 4 + documentsBufferLength + 4 + indexesBufferLength);
+    let buffer = Buffer.alloc(4 + 4 + 4);
     buffer.writeUInt32LE(faissIndexBufferLength, 0);
     buffer.writeUInt32LE(documentsBufferLength, 4);
     buffer.writeUInt32LE(indexesBufferLength, 4 + 4);
