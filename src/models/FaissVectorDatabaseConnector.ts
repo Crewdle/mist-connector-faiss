@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path from 'path';
 
 import { IndexFlatIP } from 'faiss-node';
 
@@ -206,6 +207,18 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
     buffer = Buffer.concat([buffer, faissIndexBuffer, documentsBuffer, indexesBuffer]);
 
     fs.rmSync(`${this.baseFolder}/vector-${this.dbKey}-*.bin`, { force: true });
+
+    try {
+      const pattern = new RegExp(`^vector-${this.dbKey}-.*\.bin$`);
+      const files = fs.readdirSync(this.baseFolder);
+      for (const file of files) {
+        if (pattern.test(file)) {
+          fs.rmSync(path.join(this.baseFolder, file), { force: true });
+        }
+      }
+    } catch (err) {
+      console.error('Error removing files:', err);
+    }
     fs.writeFileSync(`${this.baseFolder}/vector-${this.dbKey}-${version}.bin`, buffer);
   }
 

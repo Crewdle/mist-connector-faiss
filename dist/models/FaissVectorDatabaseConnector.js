@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.FaissVectorDatabaseConnector = void 0;
 const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
 const faiss_node_1 = require("faiss-node");
 /**
  * The Faiss vector database connector.
@@ -138,6 +139,18 @@ class FaissVectorDatabaseConnector {
         buffer.writeUInt32LE(indexesBufferLength, 4 + 4);
         buffer = Buffer.concat([buffer, faissIndexBuffer, documentsBuffer, indexesBuffer]);
         fs_1.default.rmSync(`${this.baseFolder}/vector-${this.dbKey}-*.bin`, { force: true });
+        try {
+            const pattern = new RegExp(`^vector-${this.dbKey}-.*\.bin$`);
+            const files = fs_1.default.readdirSync(this.baseFolder);
+            for (const file of files) {
+                if (pattern.test(file)) {
+                    fs_1.default.rmSync(path_1.default.join(this.baseFolder, file), { force: true });
+                }
+            }
+        }
+        catch (err) {
+            console.error('Error removing files:', err);
+        }
         fs_1.default.writeFileSync(`${this.baseFolder}/vector-${this.dbKey}-${version}.bin`, buffer);
     }
     /**
