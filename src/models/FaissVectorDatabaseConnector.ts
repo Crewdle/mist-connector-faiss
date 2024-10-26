@@ -187,7 +187,7 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
    * Save the database to disk.
    * @param version The version of the data collection.
    */
-  saveToDisk(version: number): void {
+  saveToDisk(version: string): void {
     if (!this.index || !this.baseFolder) {
       return;
     }
@@ -213,7 +213,7 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
    * Load the database from disk.
    * @param version The version of the data collection.
    */
-  loadFromDisk(version: number): void {
+  loadFromDisk(version: string): void {
     if (!this.baseFolder) {
       return;
     }
