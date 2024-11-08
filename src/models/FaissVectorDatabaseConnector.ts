@@ -1,6 +1,11 @@
+import fs from 'fs';
+import path from 'path';
+
 import { IndexFlatIP } from 'faiss-node';
 
 import { IIndex, ISearchResult, IVectorDatabaseConnector } from '@crewdle/web-sdk-types';
+
+import { IFaissVectorDatabaseOptions } from './FaissVectorDatabaseOptions';
 
 /**
  * The interface for a Faiss Vector Database document.
@@ -62,9 +67,20 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
   private indexes: IFaissVectorDatabaseIndex[] = [];
 
   /**
+   * The base folder.
+   * @ignore
+   */
+  private baseFolder?: string;
+
+  /**
    * The constructor.
    */
-  constructor() {}
+  constructor(
+    private readonly dbKey: string,
+    private readonly options?: IFaissVectorDatabaseOptions,
+  ) {
+    this.baseFolder = this.options?.baseFolder;
+  }
   
   /**
    * Get the content of the database.
@@ -166,6 +182,66 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
         }
       }
     }
+  }
+
+  /**
+   * Save the database to disk.
+   * @param version The version of the data collection.
+   */
+  saveToDisk(version: string): void {
+    if (!this.index || !this.baseFolder) {
+      return;
+    }
+
+    const faissIndexBuffer = this.index.toBuffer();
+    const faissIndexBufferLength = faissIndexBuffer.byteLength;
+    const documentsBuffer = Buffer.from(JSON.stringify(this.documents));
+    const documentsBufferLength = documentsBuffer.byteLength;
+    const indexesBuffer = Buffer.from(JSON.stringify(this.indexes));
+    const indexesBufferLength = indexesBuffer.byteLength;
+
+    let buffer = Buffer.alloc(4 + 4 + 4);
+    buffer.writeUInt32LE(faissIndexBufferLength, 0);
+    buffer.writeUInt32LE(documentsBufferLength, 4);
+    buffer.writeUInt32LE(indexesBufferLength, 4 + 4);
+    buffer = Buffer.concat([buffer, faissIndexBuffer, documentsBuffer, indexesBuffer]);
+
+    fs.rmSync(`${this.baseFolder}/vector-${this.dbKey}-*.bin`, { force: true });
+
+    try {
+      const pattern = new RegExp(`^vector-${this.dbKey}-.*\.bin$`);
+      const files = fs.readdirSync(this.baseFolder);
+      for (const file of files) {
+        if (pattern.test(file)) {
+          fs.rmSync(path.join(this.baseFolder, file), { force: true });
+        }
+      }
+    } catch (err) {
+      console.error('Error removing files:', err);
+    }
+    fs.writeFileSync(`${this.baseFolder}/vector-${this.dbKey}-${version}.bin`, buffer);
+  }
+
+  /**
+   * Load the database from disk.
+   * @param version The version of the data collection.
+   */
+  loadFromDisk(version: string): void {
+    if (!this.baseFolder) {
+      return;
+    }
+
+    const buffer = fs.readFileSync(`${this.baseFolder}/vector-${this.dbKey}-${version}.bin`);
+    const faissIndexBufferLength = buffer.readUInt32LE(0);
+    const documentsBufferLength = buffer.readUInt32LE(4);
+    const indexesBufferLength = buffer.readUInt32LE(4 + 4);
+    const faissIndexBuffer = buffer.subarray(4 + 4 + 4, 4 + 4 + 4 + faissIndexBufferLength);
+    const documentsBuffer = buffer.subarray(4 + 4 + 4 + faissIndexBufferLength, 4 + 4 + 4 + faissIndexBufferLength + documentsBufferLength);
+    const indexesBuffer = buffer.subarray(4 + 4 + 4 + faissIndexBufferLength + documentsBufferLength, 4 + 4 + 4 + faissIndexBufferLength + documentsBufferLength + indexesBufferLength);
+
+    this.index = IndexFlatIP.fromBuffer(faissIndexBuffer);
+    this.documents = JSON.parse(documentsBuffer.toString());
+    this.indexes = JSON.parse(indexesBuffer.toString());
   }
 
   /**

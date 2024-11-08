@@ -1,6 +1,11 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.FaissVectorDatabaseConnector = void 0;
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
 const faiss_node_1 = require("faiss-node");
 /**
  * The Faiss vector database connector.
@@ -9,7 +14,10 @@ class FaissVectorDatabaseConnector {
     /**
      * The constructor.
      */
-    constructor() {
+    constructor(dbKey, options) {
+        var _a;
+        this.dbKey = dbKey;
+        this.options = options;
         /**
          * The documents in the database.
          * @ignore
@@ -20,6 +28,7 @@ class FaissVectorDatabaseConnector {
          * @ignore
          */
         this.indexes = [];
+        this.baseFolder = (_a = this.options) === null || _a === void 0 ? void 0 : _a.baseFolder;
     }
     /**
      * Get the content of the database.
@@ -109,6 +118,59 @@ class FaissVectorDatabaseConnector {
                 }
             }
         }
+    }
+    /**
+     * Save the database to disk.
+     * @param version The version of the data collection.
+     */
+    saveToDisk(version) {
+        if (!this.index || !this.baseFolder) {
+            return;
+        }
+        const faissIndexBuffer = this.index.toBuffer();
+        const faissIndexBufferLength = faissIndexBuffer.byteLength;
+        const documentsBuffer = Buffer.from(JSON.stringify(this.documents));
+        const documentsBufferLength = documentsBuffer.byteLength;
+        const indexesBuffer = Buffer.from(JSON.stringify(this.indexes));
+        const indexesBufferLength = indexesBuffer.byteLength;
+        let buffer = Buffer.alloc(4 + 4 + 4);
+        buffer.writeUInt32LE(faissIndexBufferLength, 0);
+        buffer.writeUInt32LE(documentsBufferLength, 4);
+        buffer.writeUInt32LE(indexesBufferLength, 4 + 4);
+        buffer = Buffer.concat([buffer, faissIndexBuffer, documentsBuffer, indexesBuffer]);
+        fs_1.default.rmSync(`${this.baseFolder}/vector-${this.dbKey}-*.bin`, { force: true });
+        try {
+            const pattern = new RegExp(`^vector-${this.dbKey}-.*\.bin$`);
+            const files = fs_1.default.readdirSync(this.baseFolder);
+            for (const file of files) {
+                if (pattern.test(file)) {
+                    fs_1.default.rmSync(path_1.default.join(this.baseFolder, file), { force: true });
+                }
+            }
+        }
+        catch (err) {
+            console.error('Error removing files:', err);
+        }
+        fs_1.default.writeFileSync(`${this.baseFolder}/vector-${this.dbKey}-${version}.bin`, buffer);
+    }
+    /**
+     * Load the database from disk.
+     * @param version The version of the data collection.
+     */
+    loadFromDisk(version) {
+        if (!this.baseFolder) {
+            return;
+        }
+        const buffer = fs_1.default.readFileSync(`${this.baseFolder}/vector-${this.dbKey}-${version}.bin`);
+        const faissIndexBufferLength = buffer.readUInt32LE(0);
+        const documentsBufferLength = buffer.readUInt32LE(4);
+        const indexesBufferLength = buffer.readUInt32LE(4 + 4);
+        const faissIndexBuffer = buffer.subarray(4 + 4 + 4, 4 + 4 + 4 + faissIndexBufferLength);
+        const documentsBuffer = buffer.subarray(4 + 4 + 4 + faissIndexBufferLength, 4 + 4 + 4 + faissIndexBufferLength + documentsBufferLength);
+        const indexesBuffer = buffer.subarray(4 + 4 + 4 + faissIndexBufferLength + documentsBufferLength, 4 + 4 + 4 + faissIndexBufferLength + documentsBufferLength + indexesBufferLength);
+        this.index = faiss_node_1.IndexFlatIP.fromBuffer(faissIndexBuffer);
+        this.documents = JSON.parse(documentsBuffer.toString());
+        this.indexes = JSON.parse(indexesBuffer.toString());
     }
     /**
      * Create the Faiss index if it does not exist.

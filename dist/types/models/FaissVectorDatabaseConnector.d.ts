@@ -1,8 +1,11 @@
 import { IIndex, ISearchResult, IVectorDatabaseConnector } from '@crewdle/web-sdk-types';
+import { IFaissVectorDatabaseOptions } from './FaissVectorDatabaseOptions';
 /**
  * The Faiss vector database connector.
  */
 export declare class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
+    private readonly dbKey;
+    private readonly options?;
     /**
      * The Faiss index.
      * @ignore
@@ -19,9 +22,14 @@ export declare class FaissVectorDatabaseConnector implements IVectorDatabaseConn
      */
     private indexes;
     /**
+     * The base folder.
+     * @ignore
+     */
+    private baseFolder?;
+    /**
      * The constructor.
      */
-    constructor();
+    constructor(dbKey: string, options?: IFaissVectorDatabaseOptions | undefined);
     /**
      * Get the content of the database.
      * @returns The content of the database.
@@ -49,6 +57,16 @@ export declare class FaissVectorDatabaseConnector implements IVectorDatabaseConn
      * @param name The name of the document.
      */
     remove(name: string): void;
+    /**
+     * Save the database to disk.
+     * @param version The version of the data collection.
+     */
+    saveToDisk(version: string): void;
+    /**
+     * Load the database from disk.
+     * @param version The version of the data collection.
+     */
+    loadFromDisk(version: string): void;
     /**
      * Create the Faiss index if it does not exist.
      * @param dimensions The number of dimensions.
