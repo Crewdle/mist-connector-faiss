@@ -138,7 +138,6 @@ class FaissVectorDatabaseConnector {
         buffer.writeUInt32LE(documentsBufferLength, 4);
         buffer.writeUInt32LE(indexesBufferLength, 4 + 4);
         buffer = Buffer.concat([buffer, faissIndexBuffer, documentsBuffer, indexesBuffer]);
-        fs_1.default.rmSync(`${this.baseFolder}/vector-${this.dbKey}-*.bin`, { force: true });
         try {
             const pattern = new RegExp(`^vector-${this.dbKey}-.*\.bin$`);
             const files = fs_1.default.readdirSync(this.baseFolder);
