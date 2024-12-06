@@ -99,7 +99,7 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
    * @returns The content of the k nearest vectors.
    */
   search(vector: number[], k: number, minRelevance: number = 0, contentSize: number = 0): ISearchResult[] {
-    if (!this.index) {
+    if (!this.index || this.index.ntotal() === 0) {
       return [];
     }
 
@@ -172,8 +172,7 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
 
     for (const document of documents) {
       const startIndex = document.startIndex;
-      const endIndex = startIndex + document.length;
-      this.indexes = this.indexes.slice(startIndex, endIndex);
+      this.indexes.splice(startIndex, document.length);
       this.index.removeIds(Array.from({ length: document.length }, (_, index) => startIndex + index));
       this.documents = this.documents.filter((doc) => doc !== document);
       for (const doc of this.documents) {
@@ -240,6 +239,20 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
     this.index = IndexFlatIP.fromBuffer(faissIndexBuffer);
     this.documents = JSON.parse(documentsBuffer.toString());
     this.indexes = JSON.parse(indexesBuffer.toString());
+
+    if (this.indexes.length !== this.index.ntotal()) {
+      this.index = undefined;
+      this.documents = [];
+      this.indexes = [];
+      throw new Error('Index length mismatch');
+    }
+
+    if (this.documents.length === 0 && this.indexes.length !== 0) {
+      this.index = undefined;
+      this.documents = [];
+      this.indexes = [];
+      throw new Error('Document length mismatch');
+    }
   }
 
   /**
