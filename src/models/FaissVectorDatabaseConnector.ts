@@ -164,7 +164,8 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
         return sum;
       }
       return sum + (Math.min(15, id.label - ids[i - 1].label));
-    }, 0) / (ids.length - 1);
+    }, 0) / (ids.length - 1) * 1.5;
+    const averageDistance = ids.reduce((sum, id) => sum + id.distance, 0) / ids.length;
 
     for (const id of ids) {
       const document = this.documents.find((doc) => doc.startIndex <= id.label && doc.startIndex + doc.length > id.label);
@@ -173,11 +174,11 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
       }
 
       if (
-        currentGroup && currentVector && currentLabel &&
-        currentGroup.doc.startIndex === document.startIndex &&
-        Math.abs(currentGroup.labels[currentGroup.labels.length - 1] - id.label) <= averageGap * 1.5 &&
-        this.cosineSimilarity(currentVector, this.vectors[id.label]) >= 0.35 &&
-        Math.abs(currentLabel - id.label) <= 10
+        currentGroup !== undefined && currentVector !== undefined && currentLabel !== undefined &&
+        currentGroup.doc === document &&
+        id.label - Math.max(...currentGroup.labels) <= averageGap &&
+        this.cosineSimilarity(currentVector, this.vectors[id.label]) >= averageDistance &&
+        id.label - currentLabel <= averageGap * 2
       ) {
         currentGroup.labels.push(id.label);
       } else {
@@ -203,7 +204,7 @@ export class FaissVectorDatabaseConnector implements IVectorDatabaseConnector {
     idGroups.sort((a, b) => b.score - a.score);
     const finalGroups = idGroups.slice(0, k);
     finalGroups.forEach((group) => {
-      const potentialGroups = idGroups.filter((g) => g !== group && Math.min(...g.labels) >= Math.min(...group.labels) - averageGap * 3 && Math.max(...g.labels) <= Math.max(...group.labels) + averageGap * 3);
+      const potentialGroups = idGroups.filter((g) => g !== group && Math.min(...g.labels) >= Math.min(...group.labels) - averageGap * 2 && Math.max(...g.labels) <= Math.max(...group.labels) + averageGap * 2);
       potentialGroups.forEach((potentialGroup) => {
         const similarity = this.cosineSimilarity(group.centroid, potentialGroup.centroid);
         if (similarity >= 0.1) {
