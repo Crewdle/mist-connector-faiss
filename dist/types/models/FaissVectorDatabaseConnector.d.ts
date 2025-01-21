@@ -22,6 +22,10 @@ export declare class FaissVectorDatabaseConnector implements IVectorDatabaseConn
      */
     private indexes;
     /**
+     * The vectors in the database.
+     */
+    private vectors;
+    /**
      * The base folder.
      * @ignore
      */
@@ -37,13 +41,14 @@ export declare class FaissVectorDatabaseConnector implements IVectorDatabaseConn
     getBuffer(): ArrayBuffer;
     /**
      * Search for the k nearest vectors.
+     * @param keywords The keywords to search for.
      * @param vector The vector to search for.
      * @param k The number of nearest vectors to return.
      * @param minRelevance The minimum relevance of the vectors (default 0).
      * @param contentSize The size of the content to return (content +/- contentSize, default 0).
      * @returns The content of the k nearest vectors.
      */
-    search(vector: number[], k: number, minRelevance?: number, contentSize?: number): ISearchResult[];
+    search(keywords: string[], vector: number[], k: number, minRelevance?: number, contentSize?: number): ISearchResult[];
     /**
      * Insert vectors into the database.
      * @param name The name of the document.
@@ -73,4 +78,9 @@ export declare class FaissVectorDatabaseConnector implements IVectorDatabaseConn
      * @ignore
      */
     private createIndex;
+    private getCombinedScore;
+    private getCentroid;
+    private cosineSimilarity;
+    private keywordBoost;
+    private diversityAwareScore;
 }

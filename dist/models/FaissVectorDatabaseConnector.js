@@ -28,6 +28,10 @@ class FaissVectorDatabaseConnector {
          * @ignore
          */
         this.indexes = [];
+        /**
+         * The vectors in the database.
+         */
+        this.vectors = [];
         this.baseFolder = (_a = this.options) === null || _a === void 0 ? void 0 : _a.baseFolder;
     }
     /**
@@ -40,38 +44,95 @@ class FaissVectorDatabaseConnector {
     }
     /**
      * Search for the k nearest vectors.
+     * @param keywords The keywords to search for.
      * @param vector The vector to search for.
      * @param k The number of nearest vectors to return.
      * @param minRelevance The minimum relevance of the vectors (default 0).
      * @param contentSize The size of the content to return (content +/- contentSize, default 0).
      * @returns The content of the k nearest vectors.
      */
-    search(vector, k, minRelevance = 0, contentSize = 0) {
+    search(keywords, vector, k, minRelevance = 0, contentSize = 0) {
         if (!this.index || this.index.ntotal() === 0) {
             return [];
         }
         if (k > this.index.ntotal()) {
             k = this.index.ntotal();
         }
-        const search = this.index.search(vector, k);
+        const search = this.index.search(vector, k * 50);
         let ids = search.labels.map((label, index) => ({ label, distance: search.distances[index] })).filter((item) => item.distance >= minRelevance);
-        const results = ids.map((id) => {
+        ids.slice(0, Math.min(ids.length, k * 3)).forEach((id) => {
+            const newVector = this.vectors[id.label];
+            const newSearch = this.index.search(newVector, k + 1);
+            const newIds = newSearch.labels.map((label, index) => ({ label, distance: newSearch.distances[index] })).filter((item) => item.distance >= minRelevance);
+            newIds.forEach((newId) => {
+                if (!ids.some((item) => item.label === newId.label)) {
+                    ids.push(newId);
+                }
+            });
+        });
+        ids.sort((a, b) => a.label - b.label);
+        const idGroups = [];
+        let currentGroup;
+        let currentVector;
+        let currentLabel;
+        const averageGap = ids.reduce((sum, id, i) => {
+            if (i === 0) {
+                return sum;
+            }
+            return sum + (Math.min(15, id.label - ids[i - 1].label));
+        }, 0) / (ids.length - 1);
+        for (const id of ids) {
             const document = this.documents.find((doc) => doc.startIndex <= id.label && doc.startIndex + doc.length > id.label);
             if (!document) {
                 throw new Error('Document not found');
             }
-            const index = this.indexes[id.label];
-            const startIndex = Math.max(0, index.startIndex - contentSize);
-            const endIndex = Math.min(document.content.length, index.startIndex + index.length + contentSize);
-            const content = document.content.substring(startIndex, endIndex);
-            return {
-                content,
-                relevance: id.distance,
-                pathName: document.name,
-            };
+            if (currentGroup && currentVector && currentLabel &&
+                currentGroup.doc.startIndex === document.startIndex &&
+                Math.abs(currentGroup.labels[currentGroup.labels.length - 1] - id.label) <= averageGap * 1.5 &&
+                this.cosineSimilarity(currentVector, this.vectors[id.label]) >= 0.35 &&
+                Math.abs(currentLabel - id.label) <= 10) {
+                currentGroup.labels.push(id.label);
+            }
+            else {
+                currentLabel = id.label;
+                currentVector = this.vectors[id.label];
+                currentGroup = { doc: document, labels: [id.label], centroid: [], score: 0, content: '' };
+                idGroups.push(currentGroup);
+            }
+        }
+        for (const idGroup of idGroups) {
+            const clusterVectors = idGroup.labels.map((label) => this.vectors[label]);
+            const lowIndex = this.indexes[Math.min(...idGroup.labels)];
+            const highIndex = this.indexes[Math.max(...idGroup.labels)];
+            const startIndex = Math.max(0, lowIndex.startIndex - contentSize);
+            const endIndex = Math.min(idGroup.doc.content.length, highIndex.startIndex + highIndex.length + contentSize);
+            const content = idGroup.doc.content.substring(startIndex, endIndex);
+            idGroup.content = content;
+            idGroup.centroid = this.getCentroid(clusterVectors, vector);
+            idGroup.score = this.getCombinedScore(clusterVectors, idGroup.centroid, vector, keywords, content);
+        }
+        idGroups.sort((a, b) => b.score - a.score);
+        const finalGroups = idGroups.slice(0, k);
+        finalGroups.forEach((group) => {
+            const potentialGroups = idGroups.filter((g) => g !== group && Math.min(...g.labels) >= Math.min(...group.labels) - averageGap * 3 && Math.max(...g.labels) <= Math.max(...group.labels) + averageGap * 3);
+            potentialGroups.forEach((potentialGroup) => {
+                const similarity = this.cosineSimilarity(group.centroid, potentialGroup.centroid);
+                if (similarity >= 0.1) {
+                    group.labels.push(...potentialGroup.labels);
+                }
+            });
+            const lowIndex = this.indexes[Math.min(...group.labels)];
+            const highIndex = this.indexes[Math.max(...group.labels)];
+            const startIndex = Math.max(0, lowIndex.startIndex - contentSize);
+            const endIndex = Math.min(group.doc.content.length, highIndex.startIndex + highIndex.length + contentSize);
+            const content = group.doc.content.substring(startIndex, endIndex);
+            group.content = content;
         });
-        const uniqueResults = results.filter((result, index) => results.findIndex((r, i) => r.content === result.content && i !== index) === -1);
-        return uniqueResults;
+        return finalGroups.map((group) => ({
+            content: group.content,
+            relevance: group.score,
+            pathName: group.doc.name,
+        }));
     }
     /**
      * Insert vectors into the database.
@@ -93,6 +154,7 @@ class FaissVectorDatabaseConnector {
             length: index.length
         });
         this.indexes.push(...index.map((idx) => ({ startIndex: idx.start, length: idx.length })));
+        this.vectors.push(...vectors);
     }
     /**
      * Remove vectors from the database.
@@ -109,6 +171,7 @@ class FaissVectorDatabaseConnector {
         for (const document of documents) {
             const startIndex = document.startIndex;
             this.indexes.splice(startIndex, document.length);
+            this.vectors.splice(startIndex, document.length);
             this.index.removeIds(Array.from({ length: document.length }, (_, index) => startIndex + index));
             this.documents = this.documents.filter((doc) => doc !== document);
             for (const doc of this.documents) {
@@ -132,11 +195,14 @@ class FaissVectorDatabaseConnector {
         const documentsBufferLength = documentsBuffer.byteLength;
         const indexesBuffer = Buffer.from(JSON.stringify(this.indexes));
         const indexesBufferLength = indexesBuffer.byteLength;
-        let buffer = Buffer.alloc(4 + 4 + 4);
+        const vectorsBuffer = Buffer.from(JSON.stringify(this.vectors));
+        const vectorsBufferLength = vectorsBuffer.byteLength;
+        let buffer = Buffer.alloc(4 + 4 + 4 + 4);
         buffer.writeUInt32LE(faissIndexBufferLength, 0);
         buffer.writeUInt32LE(documentsBufferLength, 4);
         buffer.writeUInt32LE(indexesBufferLength, 4 + 4);
-        buffer = Buffer.concat([buffer, faissIndexBuffer, documentsBuffer, indexesBuffer]);
+        buffer.writeUInt32LE(vectorsBufferLength, 4 + 4 + 4);
+        buffer = Buffer.concat([buffer, faissIndexBuffer, documentsBuffer, indexesBuffer, vectorsBuffer]);
         try {
             const pattern = new RegExp(`^vector-${this.dbKey}-.*\.bin$`);
             const files = fs_1.default.readdirSync(this.baseFolder);
@@ -163,22 +229,34 @@ class FaissVectorDatabaseConnector {
         const faissIndexBufferLength = buffer.readUInt32LE(0);
         const documentsBufferLength = buffer.readUInt32LE(4);
         const indexesBufferLength = buffer.readUInt32LE(4 + 4);
-        const faissIndexBuffer = buffer.subarray(4 + 4 + 4, 4 + 4 + 4 + faissIndexBufferLength);
-        const documentsBuffer = buffer.subarray(4 + 4 + 4 + faissIndexBufferLength, 4 + 4 + 4 + faissIndexBufferLength + documentsBufferLength);
-        const indexesBuffer = buffer.subarray(4 + 4 + 4 + faissIndexBufferLength + documentsBufferLength, 4 + 4 + 4 + faissIndexBufferLength + documentsBufferLength + indexesBufferLength);
+        const vectorsBufferLength = buffer.readUInt32LE(4 + 4 + 4);
+        const faissIndexBuffer = buffer.subarray(4 + 4 + 4 + 4, 4 + 4 + 4 + 4 + faissIndexBufferLength);
+        const documentsBuffer = buffer.subarray(4 + 4 + 4 + 4 + faissIndexBufferLength, 4 + 4 + 4 + 4 + faissIndexBufferLength + documentsBufferLength);
+        const indexesBuffer = buffer.subarray(4 + 4 + 4 + 4 + faissIndexBufferLength + documentsBufferLength, 4 + 4 + 4 + 4 + faissIndexBufferLength + documentsBufferLength + indexesBufferLength);
+        const vectorsBuffer = buffer.subarray(4 + 4 + 4 + 4 + faissIndexBufferLength + documentsBufferLength + indexesBufferLength, 4 + 4 + 4 + 4 + faissIndexBufferLength + documentsBufferLength + indexesBufferLength + vectorsBufferLength);
         this.index = faiss_node_1.IndexFlatIP.fromBuffer(faissIndexBuffer);
         this.documents = JSON.parse(documentsBuffer.toString());
         this.indexes = JSON.parse(indexesBuffer.toString());
+        this.vectors = JSON.parse(vectorsBuffer.toString());
         if (this.indexes.length !== this.index.ntotal()) {
             this.index = undefined;
             this.documents = [];
             this.indexes = [];
+            this.vectors = [];
             throw new Error('Index length mismatch');
+        }
+        if (this.vectors.length !== this.index.ntotal()) {
+            this.index = undefined;
+            this.documents = [];
+            this.indexes = [];
+            this.vectors = [];
+            throw new Error('Vector length mismatch');
         }
         if (this.documents.length === 0 && this.indexes.length !== 0) {
             this.index = undefined;
             this.documents = [];
             this.indexes = [];
+            this.vectors = [];
             throw new Error('Document length mismatch');
         }
     }
@@ -192,6 +270,50 @@ class FaissVectorDatabaseConnector {
             return;
         }
         this.index = new faiss_node_1.IndexFlatIP(dimensions);
+    }
+    getCombinedScore(clusterVectors, centroid, queryVector, keywords, content) {
+        const centroidDistance = this.cosineSimilarity(centroid, queryVector);
+        const keywordBoost = this.keywordBoost(keywords, content);
+        const diversityAwareScore = this.diversityAwareScore(clusterVectors, queryVector);
+        return centroidDistance * 0.6 + keywordBoost * 0.3 + diversityAwareScore * 0.1;
+    }
+    getCentroid(clusterVectors, queryVector) {
+        const vectorLength = clusterVectors[0].length;
+        const similarities = clusterVectors.map((vec) => this.cosineSimilarity(vec, queryVector));
+        const transformedSimilarities = similarities.map((sim) => (sim > 0.1 ? Math.pow(sim, 2) : 0));
+        const totalSimilarity = transformedSimilarities.reduce((sum, sim) => sum + sim, 0);
+        const weights = transformedSimilarities.map((sim) => sim / totalSimilarity);
+        const centroid = Array(vectorLength).fill(0);
+        clusterVectors.forEach((vec, idx) => {
+            for (let i = 0; i < vectorLength; i++) {
+                centroid[i] += vec[i] * weights[idx];
+            }
+        });
+        return centroid.map((val) => val / clusterVectors.length);
+    }
+    cosineSimilarity(vectorA, vectorB) {
+        const dotProduct = vectorA.reduce((sum, a, i) => sum + a * vectorB[i], 0);
+        const normA = Math.sqrt(vectorA.reduce((sum, a) => sum + a * a, 0));
+        const normB = Math.sqrt(vectorB.reduce((sum, b) => sum + b * b, 0));
+        if (normA === 0 || normB === 0) {
+            return 0;
+        }
+        return dotProduct / (normA * normB);
+    }
+    keywordBoost(keywords, content) {
+        if (keywords.length === 0) {
+            return 0;
+        }
+        const contentLower = content.toLowerCase();
+        const matches = keywords.filter((keyword) => contentLower.includes(keyword.toLowerCase())).length;
+        return matches / keywords.length;
+    }
+    diversityAwareScore(clusterVectors, queryVector) {
+        const similarities = clusterVectors.map((vec) => this.cosineSimilarity(vec, queryVector));
+        const avgSimilarity = similarities.reduce((sum, sim) => sum + sim, 0) / similarities.length;
+        const variance = similarities.reduce((sum, sim) => sum + Math.pow((sim - avgSimilarity), 2), 0) / similarities.length;
+        const stdDev = Math.sqrt(variance);
+        return (avgSimilarity - stdDev * 0.1) * Math.log(1 + clusterVectors.length);
     }
 }
 exports.FaissVectorDatabaseConnector = FaissVectorDatabaseConnector;
